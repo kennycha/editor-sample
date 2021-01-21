@@ -2,8 +2,8 @@ import styled from "styled-components";
 import _ from 'lodash';
 import { useRef, useState } from "react";
 
-const LONG_DUMMY_INDICES = _.toArray(_.range(0, 50));
-const LONG_DUMMY_IMGS = _.map(_.toArray(_.range(0, 50)), (item, index) => `images/image${item % 15 + 1}.jpeg`);
+const LONG_DUMMY_INDICES = _.toArray(_.range(0, 100));
+const LONG_DUMMY_IMGS = _.map(_.toArray(_.range(0, 100)), (item, index) => `images/image${item % 15 + 1}.jpeg`);
 
 const STANDARD_DUMMY_INDICES = _.toArray(_.range(0, 20));
 
@@ -37,15 +37,28 @@ const Container = styled.div`
 const ClickBox = styled.div`
   display: inline-block;
   position: absolute;
+  z-index: 30;
   left: ${({ frameIndex }) => `${frameIndex * 2}%`};
   width: 2%;
-  height: 100%;
+  height: ${({ canDrag }) => canDrag ? 'calc(100% - 6rem)' : 'calc(100% - 4rem)'};
+  margin-top: ${({ canDrag }) => canDrag ? '4rem' : '2rem'};
+  margin-bottom: '2rem';
   background-color: ${({ selected }) => selected ? undefined : 'rgba(41, 41, 41, 0.5)'};
-  cursor: ${({ canDrag }) => canDrag ? 'grab' : 'pointer'};
-  z-index: 30;
   &:hover {
-    background-color: ${({ canDrag }) => canDrag ? 'rgba(255, 255, 255, 0.7)' : undefined};
+    opacity: ${({ canDrag }) => canDrag ? 0.5 : undefined};
   };
+  cursor: ${({ canDrag }) => canDrag ? 'grab' : 'default'};
+  background-image: ${({ isStartFrame, isEndFrame }) => {
+    if (isStartFrame) {
+      return 'url(images/timeline_startframe.svg)'
+    }
+    if (isEndFrame) {
+      return 'url(images/timeline_endframe.svg)'
+    }
+  }};
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 30% 100%;
 `
 
 const EditorContainer = styled.div`
@@ -78,7 +91,7 @@ const Image = styled.img`
   z-index: ${({ src }) => !_.isUndefined(src) ? 10 : undefined};
 `
 
-const TimeLineBarContainer = styled.div`
+const TimelineBarContainer = styled.div`
   position: absolute;
   display: flex;
   align-items: center;
@@ -91,7 +104,7 @@ const TimeLineBarContainer = styled.div`
   cursor: pointer;
 `
 
-const TimeLineBar = styled.img`
+const TimelineBar = styled.img`
   height: 100%;
 `
 
@@ -107,6 +120,8 @@ function App() {
   const ClickComponent = ({ frameIndex }) => {
     const selected = frameIndex >= startFrameIndex && frameIndex < endFrameIndex;
     const canDrag = frameIndex === startFrameIndex || frameIndex === endFrameIndex - 1;
+    const isStartFrame = frameIndex === startFrameIndex;
+    const isEndFrame = frameIndex === endFrameIndex -1 ;
   
     const handleBoxMouseEnter = (event) => {
       if (frameIndex === startFrameIndex) {
@@ -137,6 +152,10 @@ function App() {
       } else if (isEndDragging) {
         if (frameIndex !== endFrameIndex && frameIndex >= startFrameIndex + 15) {
           setEndFrameIndex(frameIndex + 1);
+        }
+      } else if (isBarDragging) {
+        if (frameIndex >= 0 && frameIndex < LONG_DUMMY_INDICES.length) {
+          setCurrentFrameIndex(frameIndex);
         }
       }
     };
@@ -169,21 +188,53 @@ function App() {
       selected={selected}
       canDrag={canDrag}
       draggable={canDrag}
+      isStartFrame={isStartFrame}
+      isEndFrame={isEndFrame}
       />
-  }
+  };
   
   const EditorComponent = ({ frameIndex }) => {
     const isEmpty = frameIndex >= LONG_DUMMY_INDICES.length;
-    
+        
     return (
       <EditorContainer>
         <IndexContainer selected={frameIndex >= startFrameIndex && frameIndex < endFrameIndex}>
           {frameIndex}
         </IndexContainer>
-        <ImageContainer empty={isEmpty} >
+        <ImageContainer
+          empty={isEmpty}
+        >
           <Image src={frameIndex % 5 === 0 ? LONG_DUMMY_IMGS[frameIndex] : undefined} />
         </ImageContainer>
       </EditorContainer>)
+  };
+
+  const TimelineBarComponent = () => {
+    const handleBarMouseEnter = (event) => {
+      setIsBarDragging(true);
+    };
+    
+    const handleBarDragStart = (event) => {
+      event.target.style.opacity = 0;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/html', currentFrameIndex);
+    }
+
+    const handleBarDragEnd = (event) => {
+      event.target.style.opacity = 1;
+      setIsBarDragging(false);
+    }
+
+    return (
+      <TimelineBarContainer 
+        currentFrameIndex={currentFrameIndex}
+        onMouseEnter={handleBarMouseEnter}
+        onDragStart={handleBarDragStart}
+        onDragEnd={handleBarDragEnd}
+        draggable
+      >
+        <TimelineBar src='images/timeline_bar.svg' draggable={false} />
+      </TimelineBarContainer>)
   }
 
   return (
@@ -191,12 +242,7 @@ function App() {
       <Title>Editor Sample</Title>
       <PreviewCanvas ref={previewCanvasRef} />
       <Container>
-        <TimeLineBarContainer 
-          currentFrameIndex={currentFrameIndex} 
-          draggable
-        >
-          <TimeLineBar src='images/timeline_bar.svg' draggable={false} />
-        </TimeLineBarContainer>
+        <TimelineBarComponent />
         {_.map(_.lt(LONG_DUMMY_INDICES.length, 30) ? STANDARD_DUMMY_INDICES : LONG_DUMMY_INDICES, (frameIndex) => <ClickComponent frameIndex={frameIndex} />)}
         {_.map(_.lt(LONG_DUMMY_INDICES.length, 30) ? STANDARD_DUMMY_INDICES : LONG_DUMMY_INDICES, (frameIndex) => {
           return <EditorComponent frameIndex={frameIndex} />
